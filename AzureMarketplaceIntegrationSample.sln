@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34622.214
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AzureMarketplaceIntegrationSample", "AzureMarketplaceIntegrationSample/AzureMarketplaceIntegrationSample.csproj", "{AEE1BE5C-ABEB-4693-A6EC-DB556AE3C8C6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureMarketplaceIntegrationSample.Tests", "AzureMarketplaceIntegrationSample.Tests\AzureMarketplaceIntegrationSample.Tests.csproj", "{288F8A0A-79CF-4F28-BE4E-D8FBF462241C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AEE1BE5C-ABEB-4693-A6EC-DB556AE3C8C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AEE1BE5C-ABEB-4693-A6EC-DB556AE3C8C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AEE1BE5C-ABEB-4693-A6EC-DB556AE3C8C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AEE1BE5C-ABEB-4693-A6EC-DB556AE3C8C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{288F8A0A-79CF-4F28-BE4E-D8FBF462241C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{288F8A0A-79CF-4F28-BE4E-D8FBF462241C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{288F8A0A-79CF-4F28-BE4E-D8FBF462241C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{288F8A0A-79CF-4F28-BE4E-D8FBF462241C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5A748267-A5E9-4FEF-BFE9-6F196FEA5F73}
+	EndGlobalSection
+EndGlobal

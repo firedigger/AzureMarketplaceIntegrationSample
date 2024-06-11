@@ -5,10 +5,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Marketplace.SaaS;
 using Microsoft.Marketplace.SaaS.Models;
-using Microsoft.VisualStudio.TestPlatform.TestHost;
 using Moq;
 using System.Reflection;
-using Xunit;
 
 namespace AzureMarketplaceIntegrationSample.Tests;
 
@@ -19,20 +17,9 @@ public class AzureMarketplaceIntegrationTests
     {
         var context = new CompanyDbContext(new DbContextOptionsBuilder<CompanyDbContext>().UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()).Options);
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
-        var client = new Mock<IMarketplaceSaaSClient>(MockBehavior.Strict);
-        var azureResponseMock = new Mock<Azure.Response<ResolvedSubscription>>(MockBehavior.Strict);
-        azureResponseMock.Setup(x => x.GetRawResponse().IsError).Returns(false);
         var tenantId = Guid.NewGuid();
-        var beneficiary = (AadIdentifier)Activator.CreateInstance(typeof(AadIdentifier), BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { "alex@email.com", Guid.NewGuid(), tenantId, "" }, null);
-        var subscription = (Subscription)Activator.CreateInstance(typeof(Subscription), BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { Guid.NewGuid(), "", "", "", SubscriptionStatusEnum.NotStarted, beneficiary, null, "", 10, null, true, false, false, null, Guid.NewGuid(), Guid.NewGuid(), "", SandboxTypeEnum.None, DateTimeOffset.UtcNow, SessionModeEnum.None }, null);
-        var resolvedSubscription = (ResolvedSubscription)Activator.CreateInstance(typeof(ResolvedSubscription), BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { Guid.NewGuid(), "sub", "offer", "plan", (long?)10, subscription }, null);
-        azureResponseMock.Setup(x => x.Value).Returns(resolvedSubscription);
-        client.Setup(x => x.Fulfillment.ResolveAsync(It.IsAny<string>(), default, default, default)).ReturnsAsync(azureResponseMock.Object);
-        var emptyAzureResponseMock = new Mock<Azure.Response>(MockBehavior.Strict);
-        emptyAzureResponseMock.Setup(x => x.IsError).Returns(false);
-        client.Setup(x => x.Fulfillment.ActivateSubscriptionAsync(It.IsAny<Guid>(), It.IsAny<SubscriberPlan>(), default, default, default)).ReturnsAsync(emptyAzureResponseMock.Object);
-        var orderFunctions = new OrderFunctions(client.Object, LoggerFactory.Create(_ => { }).CreateLogger<OrderFunctions>(), context, config);
-        var result = await orderFunctions.Landing(new HttpRequestMock(null, new Microsoft.AspNetCore.Http.QueryCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+        var orderFunctions = new OrderFunctions(MarketplaceSaasClientMockFactory.Create(tenantId), LoggerFactory.Create(_ => { }).CreateLogger<OrderFunctions>(), context, config);
+        var result = await orderFunctions.Landing(new HttpRequestMock(null, new QueryCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
         {
             ["token"] = new Microsoft.Extensions.Primitives.StringValues("token")
         }))) as ContentResult;
@@ -54,7 +41,7 @@ public class AzureMarketplaceIntegrationTests
                 { "ClientId", "appId" },
                 { "TenantId", "tenantId" }
             }).Build();
-        var orderFunctions = new OrderFunctions(null, null, context, config);
+        var orderFunctions = new OrderFunctions(null, LoggerFactory.Create(_ => { }).CreateLogger<OrderFunctions>(), context, config);
         var result = await orderFunctions.Webhook(new HttpRequestMock(@"{
     ""id"": ""65f7dffe-047d-439e-8608-65eb658a1b94"",
     ""activityId"": ""65f7dffe-047d-439e-8608-65eb658a1b94"",

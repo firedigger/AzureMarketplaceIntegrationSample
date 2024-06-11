@@ -27,17 +27,14 @@ namespace AzureMarketplaceIntegrationSample
             if (string.IsNullOrEmpty(token))
                 return new StatusCodeResult(StatusCodes.Status400BadRequest);
 
-            _logger.LogDebug("Landing with token {token}", token);
+            _logger.LogInformation("Landing with token {token}", token);
 
             var subscriptionResponse = await _marketplaceSaaSClient.Fulfillment.ResolveAsync(token);
             if (subscriptionResponse.GetRawResponse().IsError)
                 return new StatusCodeResult(StatusCodes.Status404NotFound);
             var subscriptionResolution = subscriptionResponse.Value;
             var tenantId = subscriptionResolution.Subscription.Beneficiary.TenantId.Value;
-            var email = subscriptionResolution.Subscription.Beneficiary.EmailId;
             var domain = subscriptionResolution.Subscription.Beneficiary.EmailId.Split('@')[1];
-            var companyName = domain;
-            var licenses = subscriptionResolution.Quantity.GetValueOrDefault().ToString();
 
             var customer = await _context.Customers.Where(o => o.TenantId == tenantId).FirstOrDefaultAsync();
 
@@ -51,7 +48,8 @@ namespace AzureMarketplaceIntegrationSample
                 Domain = domain,
                 Action = Action.Create,
                 Status = OperationStatusEnum.InProgress,
-                Payload = JsonSerializer.Serialize(subscriptionResolution)
+                Payload = JsonSerializer.Serialize(subscriptionResolution),
+                TimeStamp = DateTimeOffset.UtcNow
             }).Entity;
             await _context.SaveChangesAsync();
             try
@@ -63,7 +61,7 @@ namespace AzureMarketplaceIntegrationSample
                 });
                 await _context.SaveChangesAsync();
 
-                var response = await _marketplaceSaaSClient.Fulfillment.ActivateSubscriptionAsync(subscriptionResolution.Id.Value, new Microsoft.Marketplace.SaaS.Models.SubscriberPlan
+                var response = await _marketplaceSaaSClient.Fulfillment.ActivateSubscriptionAsync(subscriptionResolution.Id.Value, new SubscriberPlan
                 {
                     PlanId = subscriptionResolution.PlanId,
                     Quantity = subscriptionResolution.Quantity
@@ -100,14 +98,14 @@ namespace AzureMarketplaceIntegrationSample
             [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req,
             ILogger log)
         {
-            log.LogDebug("Modify order received: {payload}", await new StreamReader(req.Body).ReadToEndAsync());
+            log.LogInformation("Modify order received: {payload}", await new StreamReader(req.Body).ReadToEndAsync());
             var authHeader = req.Headers.Authorization.ToString();
             if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
             {
                 return new StatusCodeResult(StatusCodes.Status401Unauthorized);
             }
             var token = authHeader["Bearer ".Length..];
-            log.LogDebug("Authorization token: {token}", token);
+            log.LogInformation("Authorization token: {token}", token);
             var tokenHandler = new JwtSecurityTokenHandler();
             var parsedToken = tokenHandler.ReadToken(token) as JwtSecurityToken;
             var aud = parsedToken.Audiences.FirstOrDefault();
@@ -117,17 +115,19 @@ namespace AzureMarketplaceIntegrationSample
                 return new StatusCodeResult(StatusCodes.Status401Unauthorized);
             }
             var payload = await req.ReadFromJsonAsync<MyOperation>();
+            var domain = payload.Subscription.Beneficiary.EmailId.Split('@')[1];
+            var tenantId = payload.Subscription.Beneficiary.TenantId;
+            using var _ = _logger.BeginScope("TenantId: {tenantId}, Domain: {domain}", tenantId, domain);
             var row = _context.ProvisionLogs.Add(new ProvisionLog
             {
                 Action = payload.Action == OperationActionEnum.Unsubscribe ? Action.Delete : Action.Modify,
                 Payload = JsonSerializer.Serialize(payload),
                 TimeStamp = DateTimeOffset.UtcNow,
-                Domain = payload.Subscription.Beneficiary.EmailId,
+                Domain = domain,
                 Licenses = payload.Quantity.GetValueOrDefault(),
                 Status = OperationStatusEnum.InProgress
             }).Entity;
             await _context.SaveChangesAsync();
-            var tenantId = payload.Subscription.Beneficiary.TenantId;
             var customer = await _context.Customers.Where(o => o.TenantId == tenantId).FirstOrDefaultAsync();
             if (customer is null)
             {

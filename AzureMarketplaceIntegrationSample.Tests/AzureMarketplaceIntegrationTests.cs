@@ -3,10 +3,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.Marketplace.SaaS;
 using Microsoft.Marketplace.SaaS.Models;
 using Moq;
+using System.IdentityModel.Tokens.Jwt;
 using System.Reflection;
+using System.Security.Claims;
 
 namespace AzureMarketplaceIntegrationSample.Tests;
 
@@ -18,7 +21,7 @@ public class AzureMarketplaceIntegrationTests
         var context = new CompanyDbContext(new DbContextOptionsBuilder<CompanyDbContext>().UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()).Options);
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
         var tenantId = Guid.NewGuid();
-        var orderFunctions = new OrderFunctions(MarketplaceSaasClientMockFactory.Create(tenantId), LoggerFactory.Create(_ => { }).CreateLogger<OrderFunctions>(), context, config);
+        var orderFunctions = new OrderFunctions(MarketplaceSaasClientMockFactory.Create(tenantId), LoggerFactory.Create(_ => { }).CreateLogger<OrderFunctions>(), context, config, null, null);
         var result = await orderFunctions.Landing(new HttpRequestMock(null, new QueryCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
         {
             ["token"] = new Microsoft.Extensions.Primitives.StringValues("token")
@@ -39,9 +42,26 @@ public class AzureMarketplaceIntegrationTests
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
             {
                 { "ClientId", "appId" },
-                { "TenantId", "tenantId" }
+                { "TenantId", "tenantId" },
+                { "MarketplaceISV", "resourceId" }
             }).Build();
-        var orderFunctions = new OrderFunctions(null, LoggerFactory.Create(_ => { }).CreateLogger<OrderFunctions>(), context, config);
+        var jwtTokenHandler = new Mock<SecurityTokenHandler>(MockBehavior.Strict);
+        jwtTokenHandler.Setup(x => x.ValidateTokenAsync(It.IsAny<string>(), It.IsAny<TokenValidationParameters>())).ReturnsAsync(new TokenValidationResult { IsValid = true });
+        jwtTokenHandler.Setup(x => x.ReadToken(It.IsAny<string>())).Returns(new JwtSecurityToken("", "appId", [new Claim("tid", "tenantId"), new Claim("appid", "resourceId")], null, null, new SigningCredentials(new RsaSecurityKey(new System.Security.Cryptography.RSAParameters { Modulus = [1], Exponent = [1] }) { KeyId = "kid" }, "RS256")));
+        var fakeHttpMessageHandler = new HttpMessageHandlerMock(@"
+        {
+            ""keys"": [
+                {
+                    ""kid"": ""kid"",
+                    ""n"": ""iK9_aSUvnRV4zRKEpHK70hPNb04RBDGI5Cni7I1BGWobwH5jsek1xQ8k-7w6_qtxvBpiOi_oPLG11etjhLRTS2HFkKSLxqPIt-86sEIKbfVG1TxeLrwg5fVTiReyPKIDd0tvFFEvHc6bjGZFHZ_EvDfxPExepjaDopCYLJw6S8xFSCp9QlbKnjLLUoyIBapWeQ-tFK4MilQe7aZnssQR1vTuO-R1-zx5KQaaDzs_XbZUp7qpCsCuXoq3boZJEM3E5eZDYgVYBniDCQb1wp5JluYx78fweMYxSVRVB253PCu77ex0diPltJFte_B0FnvwARPMPzO6LGC2Jc71XTUQ0Q"",
+                    ""e"": ""AQAB""
+                }
+            ]
+        }");
+        using var fakeHttpClient = new HttpClient(fakeHttpMessageHandler);
+        var mockFactory = new Mock<IHttpClientFactory>(MockBehavior.Strict);
+        mockFactory.Setup(_ => _.CreateClient(It.IsAny<string>())).Returns(fakeHttpClient);
+        var orderFunctions = new OrderFunctions(null, LoggerFactory.Create(_ => { }).CreateLogger<OrderFunctions>(), context, config, mockFactory.Object, jwtTokenHandler.Object);
         var result = await orderFunctions.Webhook(new HttpRequestMock(@"{
     ""id"": ""65f7dffe-047d-439e-8608-65eb658a1b94"",
     ""activityId"": ""65f7dffe-047d-439e-8608-65eb658a1b94"",

@@ -5,7 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.Marketplace.SaaS;
+using System.IdentityModel.Tokens.Jwt;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWebApplication()
@@ -26,6 +28,8 @@ var host = new HostBuilder()
                 return new MarketplaceSaaSClient(new Azure.Identity.ClientSecretCredential(config["TenantId"], config["ClientId"], config["ClientSecret"]));
             });
         }
+        services.AddHttpClient();
+        services.AddSingleton<SecurityTokenHandler, JwtSecurityTokenHandler>();
         services.AddDbContext<CompanyDbContext>(options => options.UseInMemoryDatabase("CompanyDb"));
     })
     .ConfigureLogging((HostBuilderContext hostingContext, ILoggingBuilder logging) =>

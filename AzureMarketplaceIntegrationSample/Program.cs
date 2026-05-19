@@ -1,6 +1,5 @@
-extern alias AzureIdentity;
-
 using AzureMarketplaceIntegrationSample;
+using Azure.Identity;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -29,7 +28,7 @@ var host = new HostBuilder()
             services.AddScoped<IMarketplaceSaaSClient, MarketplaceSaaSClient>(sp =>
             {
                 var config = sp.GetRequiredService<IConfiguration>();
-                return new MarketplaceSaaSClient(new AzureIdentity::Azure.Identity.ClientSecretCredential(
+                return new MarketplaceSaaSClient(new ClientSecretCredential(
                     GetRequiredConfiguration(config, "TenantId"),
                     GetRequiredConfiguration(config, "ClientId"),
                     GetRequiredConfiguration(config, "ClientSecret")));

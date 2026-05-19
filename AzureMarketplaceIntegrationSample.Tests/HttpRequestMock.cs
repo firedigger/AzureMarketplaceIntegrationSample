@@ -1,17 +1,18 @@
 ﻿using Microsoft.AspNetCore.Http;
+using System.IO.Pipelines;
 using System.Text;
 
 namespace AzureMarketplaceIntegrationSample.Tests;
 
 internal class HttpRequestMock : HttpRequest
 {
-    private readonly string _body;
+    private readonly byte[] _body;
     private readonly QueryCollection _query;
     private readonly HttpContext _context;
     private readonly IHeaderDictionary _headers;
     public HttpRequestMock(string body, QueryCollection query = null, IHeaderDictionary headers = null)
     {
-        _body = body;
+        _body = Encoding.UTF8.GetBytes(body ?? string.Empty);
         var mock = new Moq.Mock<HttpContext>(Moq.MockBehavior.Strict);
         mock.Setup(x => x.Request).Returns(this);
         mock.Setup(x => x.RequestServices).Returns<IServiceProvider>(null);
@@ -41,7 +42,8 @@ internal class HttpRequestMock : HttpRequest
     public override IRequestCookieCollection Cookies { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
     public override long? ContentLength { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
     public override string ContentType { get => "application/json"; set => throw new NotImplementedException(); }
-    public override Stream Body { get => new MemoryStream(Encoding.UTF8.GetBytes(_body)); set => throw new NotImplementedException(); }
+    public override Stream Body { get => new MemoryStream(_body); set => throw new NotImplementedException(); }
+    public override PipeReader BodyReader => PipeReader.Create(new MemoryStream(_body));
 
     public override bool HasFormContentType => throw new NotImplementedException();
 

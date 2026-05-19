@@ -10,12 +10,11 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.Marketplace.SaaS;
 using Microsoft.Marketplace.SaaS.Models;
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace AzureMarketplaceIntegrationSample;
 
-public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogger<OrderFunctions> logger, CompanyDbContext context, IConfiguration configuration, IHttpClientFactory httpClientFactory, SecurityTokenHandler tokenHandler)
+public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogger<OrderFunctions> logger, CompanyDbContext context, IConfiguration configuration, BaseConfigurationManager tokenConfigurationManager, SecurityTokenHandler tokenHandler)
 {
     [Function(nameof(Landing))]
     public async Task<IActionResult> Landing([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req)
@@ -91,17 +90,6 @@ public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogge
         }
     }
 
-    private async Task<RSAParameters> GetRSAParameters(string kid)
-    {
-        using var jsonDocument = JsonDocument.Parse(await httpClientFactory.CreateClient().GetStringAsync("https://login.microsoftonline.com/common/discovery/v2.0/keys"));
-        var key = jsonDocument.RootElement.GetProperty("keys").EnumerateArray().First(k => k.GetProperty("kid").GetString() == kid);
-        return new RSAParameters
-        {
-            Modulus = Base64UrlEncoder.DecodeBytes(key.GetProperty("n").GetString()),
-            Exponent = Base64UrlEncoder.DecodeBytes(key.GetProperty("e").GetString())
-        };
-    }
-
     [Function(nameof(Webhook))]
     public async Task<IActionResult> Webhook(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req,
@@ -114,15 +102,20 @@ public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogge
         }
         var token = authHeader["Bearer ".Length..];
         var parsedToken = tokenHandler.ReadToken(token) as JwtSecurityToken;
+        if (parsedToken is null)
+        {
+            return new StatusCodeResult(StatusCodes.Status401Unauthorized);
+        }
+
         var aud = parsedToken.Audiences.FirstOrDefault();
         var tid = parsedToken.Claims.FirstOrDefault(c => c.Type == "tid")?.Value;
         var appId = parsedToken.Claims.FirstOrDefault(c => c.Type == "appid" || c.Type == "azp")?.Value;
         var validationResult = await tokenHandler.ValidateTokenAsync(token, new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new RsaSecurityKey(await GetRSAParameters(parsedToken.Header.Kid)),
+            ConfigurationManager = tokenConfigurationManager,
             ValidateIssuer = true,
-            ValidIssuer = $"https://sts.windows.net/{tid}/",
+            ValidIssuer = $"https://sts.windows.net/{configuration["TenantId"]}/",
             ValidateAudience = true,
             ValidAudience = configuration["ClientId"],
             ValidateLifetime = true

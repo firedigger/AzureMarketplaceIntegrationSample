@@ -19,7 +19,7 @@ public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogge
     [Function(nameof(Landing))]
     public async Task<IActionResult> Landing([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req)
     {
-        var token = req.Query["token"];
+        var token = req.Query["token"].ToString();
 
         if (string.IsNullOrEmpty(token))
             return new StatusCodeResult(StatusCodes.Status400BadRequest);
@@ -30,6 +30,11 @@ public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogge
         if (subscriptionResponse.GetRawResponse().IsError)
             return new StatusCodeResult(StatusCodes.Status404NotFound);
         var subscriptionResolution = subscriptionResponse.Value;
+        if (subscriptionResolution.Subscription.Beneficiary.TenantId is null)
+        {
+            return new StatusCodeResult(StatusCodes.Status400BadRequest);
+        }
+
         var tenantId = subscriptionResolution.Subscription.Beneficiary.TenantId.Value;
         var domain = subscriptionResolution.Subscription.Beneficiary.EmailId.Split('@')[1];
 
@@ -37,7 +42,7 @@ public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogge
 
         if (customer is not null)
         {
-            return new RedirectResult(configuration["Homepage"], false);
+            return new RedirectResult(GetRequiredConfiguration("Homepage"), false);
         }
         using var _ = logger.BeginScope("TenantId: {tenantId}, Domain: {domain}", tenantId, domain);
         var row = context.ProvisionLogs.Add(new ProvisionLog
@@ -57,6 +62,11 @@ public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogge
                 TenantId = tenantId
             });
             await context.SaveChangesAsync();
+
+            if (subscriptionResolution.Id is null)
+            {
+                return new StatusCodeResult(StatusCodes.Status400BadRequest);
+            }
 
             var response = await marketplaceSaaSClient.Fulfillment.ActivateSubscriptionAsync(subscriptionResolution.Id.Value, new SubscriberPlan
             {
@@ -125,6 +135,11 @@ public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogge
             return new StatusCodeResult(StatusCodes.Status401Unauthorized);
         }
         var payload = await req.ReadFromJsonAsync<MyOperation>();
+        if (payload is null)
+        {
+            return new StatusCodeResult(StatusCodes.Status400BadRequest);
+        }
+
         var domain = payload.Subscription.Beneficiary.EmailId.Split('@')[1];
         var tenantId = payload.Subscription.Beneficiary.TenantId;
         using var _ = logger.BeginScope("TenantId: {tenantId}, Domain: {domain}", tenantId, domain);
@@ -177,5 +192,10 @@ public class OrderFunctions(IMarketplaceSaaSClient marketplaceSaaSClient, ILogge
             await context.SaveChangesAsync();
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
+    }
+
+    private string GetRequiredConfiguration(string key)
+    {
+        return configuration[key] ?? throw new InvalidOperationException($"Missing required configuration value '{key}'.");
     }
 }
